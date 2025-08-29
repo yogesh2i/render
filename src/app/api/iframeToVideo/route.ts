@@ -246,6 +246,7 @@ const DEFAULT_CONFIG = {
 };
 
 async function setupDirectories(outputDir: string) {
+  console.log(`[setupDirectories] Ensuring output directory: ${outputDir}`);
   await fs.promises.mkdir(outputDir, { recursive: true });
 }
 
@@ -257,6 +258,7 @@ function formatTime(seconds: number) {
 }
 
 async function waitForVideoFile(video: any, maxWaitTime = 60000) {
+  console.log('[waitForVideoFile] Waiting for video file to be ready...');
   const startTime = Date.now();
   let videoPath: string | null = null;
   let lastSize = 0;
@@ -275,7 +277,10 @@ async function waitForVideoFile(video: any, maxWaitTime = 60000) {
       if (currentSize > 0) {
         if (currentSize === lastSize) {
           stableCount++;
-          if (stableCount >= 3) return videoPath;
+          if (stableCount >= 3) {
+            console.log(`[waitForVideoFile] Video file is stable: ${videoPath}`);
+            return videoPath;
+          }
         } else {
           stableCount = 0;
         }
@@ -288,14 +293,21 @@ async function waitForVideoFile(video: any, maxWaitTime = 60000) {
 }
 
 async function trimVideoSimple(inputPath: string, targetDuration: number, outputDir: string, timestamp: number) {
+  console.log(`[trimVideoSimple] Trimming video: ${inputPath} to ${targetDuration}s`);
   return new Promise((resolve, reject) => {
     const outputPath = path.join(outputDir, `website-${timestamp}.webm`);
     ffmpeg(inputPath)
       .setStartTime('00:00:03')
       .setDuration(targetDuration.toString())
       .output(outputPath)
-      .on('end', () => resolve(outputPath))
-      .on('error', reject)
+      .on('end', () => {
+        console.log(`[trimVideoSimple] Trimmed video saved: ${outputPath}`);
+        resolve(outputPath);
+      })
+      .on('error', (err:any) => {
+        console.error('[trimVideoSimple] Error trimming video:', err);
+        reject(err);
+      })
       .run();
   });
 }
@@ -304,6 +316,7 @@ async function recordWebsiteDirect(url: string, duration: number, outputDir: str
   let browser = null;
   let context = null;
   try {
+    console.log(`[recordWebsiteDirect] Launching browser for: ${url}`);
     browser = await chromium.launch({
       headless: true,
       args: [
@@ -317,6 +330,7 @@ async function recordWebsiteDirect(url: string, duration: number, outputDir: str
     // Preload page
     let context1 = await browser.newContext({ viewport: { width: 1080, height: 1920 } });
     const loadingPage = await context1.newPage();
+    console.log(`[recordWebsiteDirect] Preloading page: ${url}`);
     await loadingPage.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
     await loadingPage.waitForTimeout(3000);
     await context1.close();
@@ -329,13 +343,16 @@ async function recordWebsiteDirect(url: string, duration: number, outputDir: str
       }
     });
     const page = await context.newPage();
+    console.log(`[recordWebsiteDirect] Recording page: ${url} for ${duration}s`);
     await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
     await page.waitForTimeout(duration * 1000);
     const video = page.video();
     await context.close();
     await browser.close();
+    console.log(`[recordWebsiteDirect] Recording complete for: ${url}`);
     return { video, timestamp, outputDir };
   } catch (error) {
+    console.error(`[recordWebsiteDirect] Error recording ${url}:`, error);
     if (context) await context.close();
     if (browser) await browser.close();
     throw error;
@@ -344,11 +361,14 @@ async function recordWebsiteDirect(url: string, duration: number, outputDir: str
 
 async function processUrl(url: string, duration: number, outputDir: string) {
   try {
+    console.log(`[processUrl] Processing URL: ${url}`);
     const { video, timestamp, outputDir: outDir } = await recordWebsiteDirect(url, duration, outputDir);
     const videoPath = await waitForVideoFile(video);
     const rawVideoPath = path.join(outDir, `website-${timestamp}-raw.webm`);
     await fs.promises.copyFile(videoPath, rawVideoPath);
+    console.log(`[processUrl] Raw video copied: ${rawVideoPath}`);
     const trimmedVideoPath = await trimVideoSimple(rawVideoPath, duration, outDir, timestamp);
+    console.log(`[processUrl] Trimmed video path: ${trimmedVideoPath}`);
     return {
       url,
       filename: path.basename(trimmedVideoPath as string),
@@ -356,6 +376,7 @@ async function processUrl(url: string, duration: number, outputDir: string) {
       success: true
     };
   } catch (error) {
+    console.error(`[processUrl] Error processing ${url}:`, error);
     return {
       url,
       success: false,
@@ -365,20 +386,27 @@ async function processUrl(url: string, duration: number, outputDir: string) {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('[POST] Received request for batch website conversion');
     const { urls, duration = DEFAULT_CONFIG.DEFAULT_DURATION } = await request.json();
     if (!Array.isArray(urls) || urls.length === 0) {
+      console.warn('[POST] No URLs provided');
       return NextResponse.json({ success: false, error: 'No URLs provided' }, { status: 400 });
     }
     const outputDir = DEFAULT_CONFIG.OUTPUT_DIR;
     await setupDirectories(outputDir);
     const results = [];
     for (const url of urls) {
+      console.log(`[POST] Processing: ${url}`);
       const result = await processUrl(url, duration, outputDir);
       results.push(result);
-      if (!result.success) break; // Fail-fast
+      if (!result.success) {
+        console.warn(`[POST] Fail-fast: Stopping batch due to error on ${url}`);
+        break; // Fail-fast
+      }
     }
     const successful = results.filter(r => r.success);
     const failed = results.filter(r => !r.success);
+    console.log(`[POST] Batch complete: ${successful.length} successful, ${failed.length} failed`);
     return NextResponse.json({
       success: failed.length === 0,
       totalProcessed: urls.length,
@@ -389,6 +417,8 @@ export async function POST(request: NextRequest) {
       message: `Converted ${successful.length}/${urls.length} URLs successfully`
     });
   } catch (error) {
+    console.error('[POST] Batch conversion error:', error);
     return NextResponse.json({ success: false, error: "ok" }, { status: 500 });
   }
 }
+        // Process a single URL: record and trim video
