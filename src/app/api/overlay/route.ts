@@ -22,7 +22,7 @@ export const POST = async (request: NextRequest) => {
     const { duration, width, height } = await getVideoMetadata(baseVideo.url);
     console.log(`📐 Base video: ${width}x${height}, ${duration}s duration`);
 
-    const bundleInfoPath = path.join('/tmp', 'bundle-info.json');
+    const bundleInfoPath = path.join(process.cwd(), 'bundle-info.json');
     if (!fs.existsSync(bundleInfoPath)) {
       throw new Error('Bundle not found. Please run "npm run bundle" first.');
     }

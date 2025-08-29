@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     await fs.promises.writeFile(inputFile, JSON.stringify(scriptInput, null, 2));
 
     // Run your existing script
-    const scriptPath = path.join('/tmp', 'scripts', 'iframeToVideo.js');
+    const scriptPath = path.join(process.cwd(), 'scripts', 'iframeToVideo.js');
     const results = await runConversionScript(scriptPath, inputFile);
     
     // Clean up temp input file
