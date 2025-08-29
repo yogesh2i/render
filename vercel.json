@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/iframeToVideo/route.ts": {
+      "includeFiles": "scripts/**"
+    }
+  }
+}
