@@ -6,7 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import puppeteer from 'puppeteer';
 
-const getVideoMetadata = async (url:any)=>{
+const getVideoMetadata = async (url:string)=>{
 
   const {durationInSeconds, dimensions} = await parseMedia({src: url, fields: {durationInSeconds: true, dimensions: true}});
   return {duration: durationInSeconds, width: dimensions?.width, height: dimensions?.height};

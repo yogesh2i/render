@@ -56,7 +56,7 @@ export function useVideoOverlay(defaultData: {
 
       if (result.success) {
         const updatedVideos = defaultData.videos.map((video) => {
-          const convertedVideo = result.results.find((convertedVid: any) =>
+          const convertedVideo = result.results.find((convertedVid:any) =>
             convertedVid.originalUrl === video.media_url
           );
           return {
@@ -70,6 +70,7 @@ export function useVideoOverlay(defaultData: {
         setConversionError(result.error);
       }
     } catch (error) {
+      console.log(error);
       setConversionError('Failed to convert URLs');
     } finally {
       setIsConverting(false);
