@@ -7,10 +7,10 @@ const ffmpeg = require('fluent-ffmpeg');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 const DEFAULT_CONFIG = {
-  OUTPUT_DIR: './converted-videos',
+  OUTPUT_DIR: '/tmp/converted-videos',
   MAX_CONCURRENT: 2,
   DEFAULT_DURATION: 10,
-  BASE_URL_PUBLIC: 'http://localhost:3000'
+  BASE_URL_PUBLIC: 'https://render-dusky-pi.vercel.app'
 };
 
 const DEFAULT_URLS = [
