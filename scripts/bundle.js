@@ -5,7 +5,7 @@ async function createBundle() {
   console.log('Creating Remotion bundle...');
   
   const bundleLocation = await bundle({
-    entryPoint: path.join(process.cwd(), 'src/remotion/index.ts'),
+    entryPoint: path.join('/tmp', 'src/remotion/index.ts'),
     webpackOverride: (config) => config,
   });
 
@@ -19,7 +19,7 @@ async function createBundle() {
   };
   
   fs.writeFileSync(
-    path.join(process.cwd(), 'bundle-info.json'),
+    path.join('/tmp', 'bundle-info.json'),
     JSON.stringify(bundleInfo, null, 2)
   );
   

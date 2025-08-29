@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     console.log(`🚀 Starting batch conversion of ${urls.length} URLs using script...`);
 
     // Create temporary input file for the script
-    const tempDir = path.join(process.cwd(), 'temp');
+    const tempDir = path.join('/tmp', 'temp');
     await fs.promises.mkdir(tempDir, { recursive: true });
     
     const timestamp = Date.now();
@@ -36,14 +36,14 @@ export async function POST(request: NextRequest) {
     const scriptInput = {
       urls: urls,
       duration: duration,
-      outputDir: path.join(process.cwd(), 'public'),
+      outputDir: path.join('/tmp', 'public'),
       timestamp: timestamp
     };
     
     await fs.promises.writeFile(inputFile, JSON.stringify(scriptInput, null, 2));
 
     // Run your existing script
-    const scriptPath = path.join(process.cwd(), 'scripts', 'iframeToVideo.js');
+    const scriptPath = path.join('/tmp', 'scripts', 'iframeToVideo.js');
     const results = await runConversionScript(scriptPath, inputFile);
     
     // Clean up temp input file
@@ -92,7 +92,7 @@ async function runConversionScript(scriptPath: string, inputFile: string): Promi
     // Run your script with input file as argument
     const child = spawn('node', [scriptPath, inputFile], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: process.cwd(),
+      cwd: '/tmp',
       env: { ...process.env, NODE_ENV: 'production' }
     });
 
