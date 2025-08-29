@@ -1,6 +1,7 @@
-const configModule = require('./modules/config.js');
-const BatchProcessor = require('./modules/batchProcessor.js');
-const fileUtilsModule = require('./modules/fileUtils.js');
+const path = require('path');
+const configModule = require(path.join(__dirname, 'modules', 'config'));
+const BatchProcessor = require(path.join(__dirname, 'modules', 'batchProcessor'));
+const fileUtilsModule = require(path.join(__dirname, 'modules', 'fileUtils'));
 
 /**
  * Main function - orchestrates the conversion process
