@@ -1,0 +1,56 @@
+
+https://project-silhouette-transformation-animation-824.magicpatterns.app/
+https://project-ai-workforce-progress-animation-882.magicpatterns.app/
+
+https://project-stock-market-analysis-animation-824.magicpatterns.app/
+
+https://project-ai-driven-time-progression-animation-346.magicpatterns.app/
+
+
+
+
+You can’t get a pixel-perfect, frame-by-frame copy of a live iframe because:  
+
+• Remotion captures exactly one “snapshot” per output frame. Any CSS/JS animation inside the iframe still runs at real-time speed, so if it updates faster than your FPS, intermediate states get skipped.   
+
+• The iframe’s own clock isn’t hooked into Remotion’s frame clock—Remotion only “freezes” and captures whatever the browser shows at each sampled instant.   
+
+• Loading depends on network/server latency. Remotion wraps the iframe in a delayRender() with a timeout/retry policy, but slow connections can still lead to blank or loading frames. 
+  
+• Running on Lambda doesn’t change this: it’s still one snapshot per frame against a real-time page load. To guarantee every step you’d need to drive the animation via Remotion (useCurrentFrame/interpolate) or pre-record it as a video.
+
+
+
+
+
+Unfortunately, you can’t perfectly sync a live iframe’s animation to Remotion frames if you don’t know its total duration up front—Remotion only samples one snapshot per output frame, so any sub-frame updates slip through. To match every step you’ll need to either: 
+
+1) Drive the animation via Remotion’s frame clock (e.g. useCurrentFrame() + interpolate()) so you control its timing exactly.  
+2) Pre-record the iframe as a video (e.g. with Puppeteer/Playwright + FFmpeg), import it with <Video> or <OffthreadVideo>, and then Remotion can step through every frame deterministically.
+
+
+{"data": [{"data": "https://project-animated-interview-scene-with-bill-gates-543.magicpatterns.app/", "scene": 1, "metadata": {"_v": 0, "_id": "689b0db9a6d6665b48c16caa", "slug": "animated-interview-scene-with-bill-gates-543", "hasPassword": false, "editorRoomId": "dvvgqy1g2xxaxpi3ret3na"}}, {"data": "https://project-animated-typewriter-text-display-910.magicpatterns.app/", "scene": 2, "metadata": {"v": 0, "_id": "689b0dbea6d6665b48c16cfd", "slug": "animated-typewriter-text-display-910", "hasPassword": false, "editorRoomId": "nhjlpbjkjbohjtwmbcz7kc"}}, {"data": "https://project-split-screen-graphic-of-bill-gates-657.magicpatterns.app/", "scene": 3, "metadata": {"v": 0, "_id": "689b0dd70f1008073c16902c", "slug": "split-screen-graphic-of-bill-gates-657", "hasPassword": false, "editorRoomId": "mfkx7eahnhxxvofxew86mf"}}, {"data": "https://project-new-design-5751.magicpatterns.app/", "scene": 4, "metadata": {"v": 0, "_id": "689b0dde0f1008073c169084", "slug": "new-design-5751", "hasPassword": false, "editorRoomId": "bvk58hyb96mgxhsjlu2skd"}}, {"data": "https://project-vintage-computer-motion-graphic-465.magicpatterns.app/", "scene": 5, "metadata": {"v": 0, "_id": "689b0df30f1008073c1691d5", "slug": "vintage-computer-motion-graphic-465", "hasPassword": false, "editorRoomId": "sfbg6315sw5z84be5c7dh8"}}, {"data": "https://project-animated-risk-balancing-scale-273.magicpatterns.app/", "scene": 6, "metadata": {"v": 0, "_id": "689b0dfea6d6665b48c16f5d", "slug": "animated-risk-balancing-scale-273", "hasPassword": false, "editorRoomId": "7gdd7junslstvaxjsxhl9z"}}, {"data": "https://project-young-bill-gates-motion-graphic-476.magicpatterns.app/", "scene": 7, "metadata": {"v": 0, "_id": "689b0e14a6d6665b48c170b0", "slug": "young-bill-gates-motion-graphic-476", "hasPassword": false, "editorRoomId": "tjabs9xn174mqfr477gjgr"}}, {"data": "https://project-animated-lightbulb-to-graduation-cap-transition-710.magicpatterns.app/", "scene": 8, "metadata": {"_v": 0, "_id": "689b0e1ea6d6665b48c1711a", "slug": "animated-lightbulb-to-graduation-cap-transition-710", "hasPassword": false, "editorRoomId": "2poxmrsvh6hxaxvn915bbw"}}], "step_name": "magicmotion", "project_id": "835f5b9d-ef8d-4ad4-a578-6b52741d50cf"}
+
+{"trimmed": false, "base_url": "https://d2ra5fstrqw46p.cloudfront.net/videos/1754991923_9065.mp4", "end_time": 4372, "language": "en", "is_youtube": true, "project_id": "835f5b9d-ef8d-4ad4-a578-6b52741d50cf", "start_time": 4297,
+
+
+const data = {
+    baseVideo:{
+        url
+    },
+    layers: [
+        {
+            url,
+            start,
+            duraation
+        }
+    ]
+}
+
+
+
+https://d2ra5fstrqw46p.cloudfront.net/videos/1755001474_6631.mp4
+
+
+
+{"data": [{"data": "https://project-career-crossroads-animation-344.magicpatterns.app/", "scene": 1, "metadata": {"_v": 0, "_id": "689b333d0f1008073c1793fb", "slug": "career-crossroads-animation-344", "hasPassword": false, "editorRoomId": "crjjgjav478f88vmz6mvh6"}}, {"data": "https://project-vinod-khosla-interview-component-123.magicpatterns.app/", "scene": 2, "metadata": {"v": 0, "_id": "689b333f0f1008073c17941b", "slug": "vinod-khosla-interview-component-123", "hasPassword": false, "editorRoomId": "affbnqmssexnbzetqrtnv6"}}, {"data": "https://project-animated-technological-timeline-215.magicpatterns.app/", "scene": 3, "metadata": {"v": 0, "_id": "689b335b0f1008073c17951d", "slug": "animated-technological-timeline-215", "hasPassword": false, "editorRoomId": "v2zhfadtz7tt3qalt6pcwu"}}, {"data": "https://project-split-screen-evolution-animation-413.magicpatterns.app/", "scene": 4, "metadata": {"v": 0, "_id": "689b335d0f1008073c17954d", "slug": "split-screen-evolution-animation-413", "hasPassword": false, "editorRoomId": "btm1y6yp3bq7rvgrsifvg8"}}, {"data": "https://project-vintage-to-smart-tv-transition-animation-278.magicpatterns.app/", "scene": 5, "metadata": {"v": 0, "_id": "689b3377a6d6665b48c27cbd", "slug": "vintage-to-smart-tv-transition-animation-278", "hasPassword": false, "editorRoomId": "ggreyehkupz2mwffq91ttb"}}, {"data": "https://project-water-tap-overflow-animation-874.magicpatterns.app/", "scene": 6, "metadata": {"v": 0, "_id": "689b337c0f1008073c1796b1", "slug": "water-tap-overflow-animation-874", "hasPassword": false, "editorRoomId": "bjcich9s9wfemkxg2qtgvj"}}, {"data": "https://project-ai-workforce-progress-animation-882.magicpatterns.app/", "scene": 7, "metadata": {"v": 0, "_id": "689b3395a6d6665b48c27dfa", "slug": "ai-workforce-progress-animation-882", "hasPassword": false, "editorRoomId": "g6rvjcbc1etaq2ajlszxdo"}}, {"data": "https://project-ai-driven-time-progression-animation-346.magicpatterns.app/", "scene": 8, "metadata": {"_v": 0, "_id": "689b33990f1008073c1797ca", "slug": "ai-driven-time-progression-animation-346", "hasPassword": false, "editorRoomId": "gnzxzvvtwhahbjt1bhskwa"}}], "step_name": "magicmotion", "project_id": "87416702-eb6e-4e53-a782-9b076bafe8c0"}
