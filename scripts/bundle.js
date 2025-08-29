@@ -18,11 +18,14 @@ async function createBundle() {
     createdAt: new Date().toISOString(),
   };
   
-  fs.writeFileSync(
-    path.join('/tmp', 'bundle-info.json'),
-    JSON.stringify(bundleInfo, null, 2)
-  );
-  
+const tmpDir = path.join(process.cwd(), 'tmp');
+if (!fs.existsSync(tmpDir)) {
+  fs.mkdirSync(tmpDir, { recursive: true });
+}
+fs.writeFileSync(
+  path.join(tmpDir, 'bundle-info.json'),
+  JSON.stringify(bundleInfo, null, 2)
+);
   console.log('Bundle info saved to bundle-info.json');
 }
 
