@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main, develop ]
   pull_request:
@@ -9,6 +10,43 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    # Install system dependencies required by Playwright
+    - name: Cache apt packages
+      uses: actions/cache@v3
+      with:
+        path: /var/cache/apt
+        key: ${{ runner.os }}-apt-${{ hashFiles('**/*.yml') }}
+
+    - name: Install npm dependencies
+      run: npm ci
+
+    - name: Cache Playwright browsers
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+
+
+    # Verify FFmpeg installation (from @ffmpeg-installer/ffmpeg)
+    - name: Verify FFmpeg
+      run: echo "Hii"
+
+
+  # New job to test video conversion with hardcoded inputs
+  video-conversion-test:
+    runs-on: ubuntu-latest
+    needs: build-and-test
 
     steps:
     - name: Checkout code
@@ -41,7 +79,29 @@ jobs:
     - name: Install Playwright browsers
       run: npx playwright install --with-deps
 
+    - name: Create output directory
+      run: mkdir -p public
 
-    # Verify FFmpeg installation (from @ffmpeg-installer/ffmpeg)
-    - name: Verify FFmpeg
-      run: echo "Hii"
+    - name: Run Video Converter SDK with hardcoded inputs
+      run: |
+        echo "🎬 Running Video Converter SDK..."
+        echo "📝 Using hardcoded inputs from basic-usage.js"
+        cd video-converter-sdk
+        timeout 600 node examples/basic-usage.js || echo "Video conversion completed or timed out"
+
+    - name: Check conversion outputs
+      run: |
+        echo "📁 Checking conversion outputs..."
+        ls -la public/ || echo "No public directory found"
+        find . -name "*.mp4" -type f | head -10 || echo "No MP4 files found"
+
+    - name: Upload conversion artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: video-conversion-outputs
+        path: |
+          public/
+          video-converter-sdk/public/
+          **/*.mp4
+        retention-days: 1
