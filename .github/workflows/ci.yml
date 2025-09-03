@@ -33,7 +33,7 @@ jobs:
           libdrm2 \
           libgtk-3-0 \
           libgbm1 \
-          libasound2
+          libasound2t64
 
     - name: Install npm dependencies
       run: npm ci
