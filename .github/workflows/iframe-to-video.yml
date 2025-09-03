@@ -1,0 +1,159 @@
+name: Run iframeToVideo Script
+
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: 'URLs to convert (JSON array format)'
+        required: false
+        default: '["https://project-animated-interview-scene-with-bill-gates-543.magicpatterns.app/", "https://project-animated-lightbulb-to-graduation-cap-transition-710.magicpatterns.app/"]'
+        type: string
+      duration:
+        description: 'Video duration in seconds'
+        required: false
+        default: '10'
+        type: string
+      output_dir:
+        description: 'Output directory'
+        required: false
+        default: '/tmp/public'
+        type: string
+
+jobs:
+  iframe-to-video:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    # Install system dependencies required by Playwright
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libnss3 \
+          libnspr4 \
+          libatk1.0-0 \
+          libatk-bridge2.0-0 \
+          libcups2 \
+          libdrm2 \
+          libgtk-3-0 \
+          libgbm1 \
+          libasound2t64
+
+    - name: Install npm dependencies
+      run: npm ci
+
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps
+
+    - name: Install Puppeteer browsers  
+      run: npx puppeteer browsers install chrome
+
+    # Create input file for the script
+    - name: Create input file
+      run: |
+        echo "📝 Creating input file with provided parameters..."
+        mkdir -p /tmp/temp
+        cat << EOF > /tmp/temp/batch-input.json
+        {
+          "urls": ${{ github.event.inputs.urls }},
+          "duration": ${{ github.event.inputs.duration }},
+          "outputDir": "${{ github.event.inputs.output_dir }}",
+          "timestamp": $(date +%s)
+        }
+        EOF
+        echo "📋 Input file contents:"
+        cat /tmp/temp/batch-input.json
+
+    # Create output directory
+    - name: Create output directory
+      run: |
+        mkdir -p ${{ github.event.inputs.output_dir }}
+        echo "📁 Created output directory: ${{ github.event.inputs.output_dir }}"
+
+    # Run the iframeToVideo.js script
+    - name: Run iframeToVideo.js script
+      run: |
+        echo "🎬 Starting iframeToVideo conversion..."
+        echo "📝 Script: scripts/iframeToVideo.js"
+        echo "📂 Input file: /tmp/temp/batch-input.json"
+        echo "📁 Output directory: ${{ github.event.inputs.output_dir }}"
+        echo ""
+        
+        # Run the script with timeout
+        timeout 1200 node scripts/iframeToVideo.js /tmp/temp/batch-input.json || {
+          echo "⚠️ Script finished or timed out after 20 minutes"
+          exit_code=$?
+          if [ $exit_code -eq 124 ]; then
+            echo "🕐 Process timed out but may have produced partial results"
+          fi
+        }
+
+    # Check results
+    - name: Check conversion results
+      run: |
+        echo "📊 Conversion Results:"
+        echo "===================="
+        
+        # Check output directory
+        if [ -d "${{ github.event.inputs.output_dir }}" ]; then
+          echo "📁 Output directory contents:"
+          ls -la ${{ github.event.inputs.output_dir }}/ || echo "Directory exists but is empty"
+          
+          # Count and list video files
+          video_count=$(find ${{ github.event.inputs.output_dir }} -name "*.mp4" | wc -l)
+          echo ""
+          echo "🎥 Generated videos: $video_count"
+          
+          if [ $video_count -gt 0 ]; then
+            echo "📝 Video files:"
+            find ${{ github.event.inputs.output_dir }} -name "*.mp4" -exec ls -lh {} \;
+          fi
+        else
+          echo "❌ Output directory not found"
+        fi
+        
+        # Check for results file
+        if [ -f "/tmp/temp/conversion-results.json" ]; then
+          echo ""
+          echo "📋 Conversion results summary:"
+          cat /tmp/temp/conversion-results.json
+        fi
+
+    # Upload results as artifacts
+    - name: Upload conversion results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: iframe-video-conversion-results
+        path: |
+          ${{ github.event.inputs.output_dir }}/
+          /tmp/temp/conversion-results.json
+          /tmp/temp/batch-input.json
+        retention-days: 7
+
+    # Summary
+    - name: Conversion Summary
+      if: always()
+      run: |
+        echo ""
+        echo "✅ iframeToVideo Script Execution Complete!"
+        echo "================================================"
+        echo "📝 Input URLs: ${{ github.event.inputs.urls }}"
+        echo "⏱️ Duration: ${{ github.event.inputs.duration }}s"
+        echo "📁 Output Dir: ${{ github.event.inputs.output_dir }}"
+        echo ""
+        echo "📦 Check the 'iframe-video-conversion-results' artifact for:"
+        echo "   • Generated MP4 video files"
+        echo "   • Conversion results JSON"
+        echo "   • Input parameters used"
+        echo ""
+        echo "🔍 Review the logs above for detailed conversion status"
