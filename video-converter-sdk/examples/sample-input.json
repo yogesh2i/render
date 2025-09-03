@@ -1,0 +1,20 @@
+{
+  "base_url": "https://example.com/original-video.mp4",
+  "videos": [
+    {
+      "media_url": "https://project-career-crossroads-animation-344.magicpatterns.app/",
+      "start_frame": 139,
+      "end_frame": 339
+    },
+    {
+      "media_url": "https://project-ai-driven-time-progression-animation-346.magicpatterns.app/",
+      "start_frame": 561,
+      "end_frame": 761
+    },
+    {
+      "media_url": "https://project-ai-workforce-progress-animation-882.magicpatterns.app/",
+      "start_frame": 100,
+      "end_frame": 200
+    }
+  ]
+}
