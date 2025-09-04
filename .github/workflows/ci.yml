@@ -2,10 +2,7 @@ name: CI
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
+  
 
 jobs:
   build-and-test:
@@ -83,25 +80,21 @@ jobs:
       run: mkdir -p public
 
     - name: Run Video Converter SDK with hardcoded inputs
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+        S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
       run: |
         echo "🎬 Running Video Converter SDK..."
         echo "📝 Using hardcoded inputs from basic-usage.js"
         cd video-converter-sdk
         timeout 600 node examples/basic-usage.js || echo "Video conversion completed or timed out"
 
-    - name: Check conversion outputs
-      run: |
-        echo "📁 Checking conversion outputs..."
-        ls -la public/ || echo "No public directory found"
-        find . -name "*.mp4" -type f | head -10 || echo "No MP4 files found"
-
-    - name: Upload conversion artifacts
+    - name: 📤 Upload Results
       uses: actions/upload-artifact@v4
-      if: always()
       with:
-        name: video-conversion-outputs
+        name: converted-videos-result
         path: |
           public/
-          video-converter-sdk/public/
-          **/*.mp4
         retention-days: 1

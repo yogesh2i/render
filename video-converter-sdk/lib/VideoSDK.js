@@ -8,8 +8,18 @@ const fs = require('fs').promises;
 const path = require('path');
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const ffmpeg = require('fluent-ffmpeg');
-const { timeout, ScreenRecorder } = require('puppeteer');
-const { error } = require('console');
+const AWS = require('aws-sdk');
+require('dotenv').config();
+
+console.log(process.env.AWS_ACCESS_KEY_ID);
+// Configure AWS
+AWS.config.update({
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  region: process.env.AWS_REGION
+});
+
+const s3 = new AWS.S3();
 
 // Set FFmpeg path
 ffmpeg.setFfmpegPath(ffmpegPath);
@@ -17,9 +27,9 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 class VideoConverterSDK {
   constructor(options = {}) {
     this.config = {
-      outputDir: options.outputDir || './public/converted-videos',
-      tempDir: options.tempDir || './temp',
-      screenshotDir: options.screenshotDir || './temp/screenshots', 
+      outputDir: options.outputDir || './tmp/public/converted-videos',
+      tempDir: options.tempDir || './tmp',
+      screenshotDir: options.screenshotDir || './tmp/screenshots', 
       fps: options.fps || 30,
       duration: options.duration || 10,
       timeout: options.timeout || 120000,
@@ -79,8 +89,8 @@ class VideoConverterSDK {
     console.log('🎬 Starting video conversion...');
 
     // Validate input format
-    if (!inputJSON || !inputJSON.videos || !Array.isArray(inputJSON.videos)) {
-      throw new Error('Invalid input: videos array is required');
+    if (!inputJSON) {
+      throw new Error('Invalid input: JSON is required');
     }
 
     // Initialize if needed
@@ -91,33 +101,59 @@ class VideoConverterSDK {
     const startTime = Date.now();
 
     try {
-      console.log(`📝 Processing ${inputJSON.videos.length} videos in parallel...`);
+      console.log(`📝 Processing ${inputJSON.magicmotion.length} videos in parallel...`);
 
       // Process all videos in parallel using single browser/context
-      const videoPromises = inputJSON.videos.map(async (video, index) => {
+      const videoPromises = inputJSON.magicmotion.map(async (video, index) => {
         try {
           const result = await this.processVideo(video, index);
           return {
-            ...video, // Keep original fields: media_url, start_frame, end_frame
-            converted_url: result.converted_url
+            ...video, // Keep original fields: data, start_frame, end_frame
+            graphic_motion_url: video.data,
+            data: result.converted_url
           };
         } catch (error) {
           console.error(`❌ Video ${index + 1} failed:`, error.message);
           return {
             ...video,
-            converted_url: '', // Empty URL on failure
-            error: error.message
+            graphic_motion_url: video.data,
+            data: '', // Empty URL on failure
+           
           };
         }
       });
 
       // Wait for all videos to complete
       const processedVideos = await Promise.all(videoPromises);
+     let updatedMotionGraphicsData = inputJSON.motion_graphics_data;
+    
+    if (inputJSON.motion_graphics_data && Array.isArray(inputJSON.motion_graphics_data)) {
+      updatedMotionGraphicsData = inputJSON.motion_graphics_data.map((video, index) => {
+        // Find corresponding processed video from magicmotion by scene or index
+        const correspondingProcessed = processedVideos.find(processed => 
+          processed.scene === video.scene || processed.metadata._id === video.metadata._id
+        ) || processedMagicMotion[index]; // Fallback to index matching
 
+        if (correspondingProcessed) {
+          return {
+            ...video, // Keep original fields
+            graphic_motion_url: video.data, 
+            data: correspondingProcessed.data 
+          };
+        } else {
+          return {
+            ...video,
+            graphic_motion_url: video.data,
+            data: '' 
+          };
+        }
+      });
+    }
       // Build output JSON in same format as input
       const output = {
-        base_url: inputJSON.base_url || '',
-        videos: processedVideos
+        ...inputJSON,
+        magicmotion: processedVideos, // Replace magicmotion array with processed results
+        motion_graphics_data: updatedMotionGraphicsData
       };
 
       const processingTime = Date.now() - startTime;
@@ -135,26 +171,24 @@ class VideoConverterSDK {
    * Process a single video
    */
   async processVideo(video, index) {
-    const { media_url, start_frame, end_frame } = video;
+    const { data } = video;
     
     // Validate video data
-    if (!media_url || typeof start_frame !== 'number' || typeof end_frame !== 'number') {
-      throw new Error('Invalid video data: media_url, start_frame, and end_frame are required');
+    if (!data) {
+      throw new Error('Invalid video data: data, start_frame, and end_frame are required');
     }
 
-    // const frameCount = end_frame - start_frame + 1;
-    // const duration = frameCount / this.config.fps;
+
       const frameCount = this.config.duration * this.config.fps;  
-  const duration = this.config.duration;
     const projectId = `sdk_${Date.now()}_${index}`;
     
-    console.log(`🔄 [${index + 1}] Processing: ${media_url} (frames ${start_frame}-${end_frame})`);
+    console.log(`🔄 [${index + 1}] Processing: ${data}`);
 
     // Create unique directories for this video
     const videoScreenshotDir = path.join(this.config.screenshotDir, `video_${projectId}`);
     await this.ensureDirectory(videoScreenshotDir);
 
-    const urlObject = new URL(media_url);
+    const urlObject = new URL(data);
     const domainName = urlObject.hostname;
     const outputFilename = `${domainName}.mp4`;
     const outputPath = path.join(this.config.outputDir, outputFilename);
@@ -194,17 +228,17 @@ class VideoConverterSDK {
         console.log(`📱 [${index + 1}] Loading page with two-page pattern...`);
         
         // Page 1: Loading page (networkidle) - heavy lifting with longer timeout
-        await loadingPage.goto(media_url, { 
+        await loadingPage.goto(data, { 
           waitUntil: 'networkidle', 
           timeout: 60000  // Increased timeout for slow sites
         });
       
 //wait for contents to be cached
-  await new Promise(resolve => setTimeout(resolve, 5000));
+  await new Promise(resolve => setTimeout(resolve, 2000));
 
   
         // Page 2: Screenshot page (domcontentloaded) - fast, uses cached resources  
-        await screenshotPage.goto(media_url, { 
+        await screenshotPage.goto(data, { 
           waitUntil: 'domcontentloaded', 
           timeout: this.config.timeout 
         });
@@ -223,18 +257,29 @@ class VideoConverterSDK {
           console.log(`🎬 [${index + 1}] Generating video...`);
           await this.generateVideo(videoScreenshotDir, outputPath);
 
-          // Clean up screenshots
-          await this.removeDirectory(videoScreenshotDir);
+          const bucketName = process.env.S3_BUCKET_NAME || 'your-bucket-name';
 
-          // Create converted URL using domain name (as requested)
-          const convertedUrl = `${this.config.baseUrl}/${outputFilename}/`;
+let convertedUrl;
+try {
+  // Upload to S3 and get S3 URL
+  const s3Url = await this.uploadVideoToS3(outputPath, bucketName);
+  convertedUrl = s3Url;
+  console.log(`✅ [${index + 1}] Video uploaded to S3: ${s3Url}`);
+} catch (s3Error) {
+  console.error(`❌ [${index + 1}] S3 upload failed, using local URL:`, s3Error.message);
+  // Fallback to local URL if S3 upload fails
+  convertedUrl = `${this.config.baseUrl}/${outputFilename}/`;
+}
 
-          console.log(`✅ [${index + 1}] Video completed: ${outputFilename}`);
+// Clean up screenshots
+await this.removeDirectory(videoScreenshotDir);
 
-          return {
-            converted_url: convertedUrl
-          };
+console.log(`✅ [${index + 1}] Video completed: ${outputFilename}`);
 
+return {
+  converted_url: convertedUrl // Now returns S3 URL instead of local URL
+};
+        
       } finally {
         await loadingPage.close();
         await screenshotPage.close();
@@ -405,6 +450,55 @@ async captureWithJSTimeControl(page, screenshotDir, frameCount, videoIndex) {
         .run();
     });
   }
+
+  
+/**
+ * Upload video file to S3 and return S3 URL
+ * @param {string} localFilePath - Path to local MP4 file
+ * @param {string} bucketName - S3 bucket name
+ * @param {string} folderPrefix - Optional folder prefix (e.g., 'converted-videos/')
+ * @returns {Promise<string>} - S3 URL of uploaded file
+ */
+async uploadVideoToS3(localFilePath, bucketName, folderPrefix = 'converted-videos/') {
+  try {
+    console.log(`📤 Uploading ${path.basename(localFilePath)} to S3...`);
+
+    // Read the file
+    const fileContent = await fs.readFile(localFilePath);
+    const fileName = path.basename(localFilePath);
+    const s3Key = `${folderPrefix}${fileName}`;
+
+    // Upload parameters
+    const uploadParams = {
+      Bucket: bucketName,
+      Key: s3Key,
+      Body: fileContent,
+      ContentType: 'video/mp4',
+      ACL: 'public-read', // Make it publicly accessible
+      CacheControl: 'max-age=86400',
+      Expires: new Date(Date.now() + 24 * 60 * 60 * 1000) // 1 day from now
+    };
+
+    // Upload to S3
+    const result = await s3.upload(uploadParams).promise();
+    
+    console.log(`✅ S3 upload successful: ${result.Location}`);
+    
+    // Clean up local file after successful upload
+    try {
+      await fs.unlink(localFilePath);
+      console.log(`🗑️ Local file cleaned up: ${localFilePath}`);
+    } catch (cleanupError) {
+      console.warn(`⚠️ Could not clean up local file: ${cleanupError.message}`);
+    }
+    
+    return result.Location;
+
+  } catch (error) {
+    console.error('❌ S3 upload failed:', error);
+    throw new Error(`S3 upload failed: ${error.message}`);
+  }
+}
 
   /**
    * Cleanup resources
