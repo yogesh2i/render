@@ -128,9 +128,8 @@ jobs:
         method: "GET"
         customHeaders: '{"Content-Type": "application/json", "Authorization": "Token ${{ secrets.MAGICROLL_API_KEY }}"}'
         
-    - name: 📊 Show Data
+    - name: Show Response
       run: |
-        echo "Project ID is: ${{ inputs.project_id }}"
-        echo ""
-        echo "Raw Data:"
-        echo "${{ steps.get-data.outputs.response }}"
+        echo ${{ steps.get-data.outputs.response }}
+        echo ${{ steps.get-data.outputs.headers }}
+        echo ${{ steps.get-data.outputs.status }}
