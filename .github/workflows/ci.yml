@@ -106,45 +106,45 @@
 #         path: |
 #           public/
 #         retention-days: 1
-name: Test MagicRoll API
-on:
-  workflow_dispatch:
-    inputs:
-      project_id:
-        required: true
-        type: string
-        description: 'Project ID to fetch from API'
-        default: 'ae0fb7f9-0ed4-45c4-a187-b3f0b08a360f'
-
-jobs:
-  convert-magic-motion:
-    runs-on: ubuntu-latest
-    outputs:
-      api-data: ${{ steps.fetch-api.outputs.response }}
-    steps:
-    - name: 📦 Checkout
-      uses: actions/checkout@v4
-        
-    # STEP 1: Fetch data from MagicRoll API using http-request-action
-    - name: 🌐 Fetch Project Data from MagicRoll API
-      id: fetch-api
-      uses: fjogeleit/http-request-action@v1
-      with:
-        url: "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata"
-        method: "GET"
-        customHeaders: '{"Content-Type": "application/json", "Authorization": "Token ${{ secrets.MAGICROLL_API_KEY }}"}'
-        
-    - name: 📊 Display API Response
-      run: |
-        echo "🚀 API GET test completed!"
-        echo "📋 Project ID: ${{ inputs.project_id }}"
-        echo "🌍 API URL: https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata"
-        echo "📊 Response Status: ${{ steps.fetch-api.outputs.statusCode }}"
-        
-        echo ""
-        echo "📤 API Response:"
-        echo '${{ steps.fetch-api.outputs.response }}' | jq '.' || echo '${{ steps.fetch-api.outputs.response }}'
-        
+convert-magic-motion:
+  runs-on: ubuntu-latest
+  outputs:
+    api-data: ${{ steps.fetch-api.outputs.response }}
+  steps:
+  - name: 📦 Checkout
+    uses: actions/checkout@v4
+      
+  # STEP 1: Fetch data from MagicRoll API using http-request-action
+  - name: 🌐 Fetch Project Data from MagicRoll API
+    id: fetch-api
+    uses: fjogeleit/http-request-action@v1
+    with:
+      url: "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata"
+      method: "GET"
+      customHeaders: '{"Content-Type": "application/json", "Authorization": "Token ${{ secrets.MAGICROLL_API_KEY }}"}'
+      timeout: 30000
+      
+  - name: 📊 Display API Response (Safe)
+    run: |
+      echo "🚀 API GET test completed!"
+      echo "📋 Project ID: ${{ inputs.project_id }}"
+      echo "🌍 API URL: https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata"
+      echo "📊 Response Status: ${{ steps.fetch-api.outputs.statusCode }}"
+      
+      echo ""
+      echo "📤 Raw API Response (first 500 chars):"
+      echo '${{ steps.fetch-api.outputs.response }}' | head -c 500
+      
+      echo ""
+      echo "📤 API Response Length: $(echo '${{ steps.fetch-api.outputs.response }}' | wc -c)"
+      
+      # Save response to file for safer processing
+      echo '${{ steps.fetch-api.outputs.response }}' > api-response-raw.txt
+      
+      echo ""
+      echo "🔍 Response Analysis:"
+      if echo '${{ steps.fetch-api.outputs.response }}' | jq empty 2>/dev/null; then
+        echo "✅ Valid JSON detected"
         echo ""
         echo "📋 Response Summary:"
         echo '${{ steps.fetch-api.outputs.response }}' | jq '{
@@ -152,4 +152,26 @@ jobs:
           magicmotion_count: (.magicmotion | length),
           motion_graphics_count: (.motion_graphics_data | length),
           enable_magic_motion: .enable_magic_motion
-        }' || echo "Could not parse response structure"
+        }' 2>/dev/null || echo "Could not parse JSON structure"
+      else
+        echo "❌ Invalid JSON detected"
+        echo "🔍 First 200 characters of response:"
+        echo '${{ steps.fetch-api.outputs.response }}' | head -c 200
+        echo ""
+        echo "🔍 Response type detection:"
+        if echo '${{ steps.fetch-api.outputs.response }}' | grep -q "<!DOCTYPE\|<html"; then
+          echo "📄 HTML content detected (possibly error page)"
+        elif echo '${{ steps.fetch-api.outputs.response }}' | grep -q "error\|Error\|ERROR"; then
+          echo "🚨 Error message detected"
+        else
+          echo "❓ Unknown content type"
+        fi
+      fi
+      
+  - name: 📄 Upload Raw Response for Debugging
+    uses: actions/upload-artifact@v4
+    with:
+      name: api-response-debug-${{ inputs.project_id }}-${{ github.run_id }}
+      path: |
+        api-response-raw.txt
+      retention-days: 1
