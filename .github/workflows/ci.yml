@@ -106,7 +106,18 @@
 #         path: |
 #           public/
 #         retention-days: 1
-convert-magic-motion:
+name: Test MagicRoll API
+on:
+  workflow_dispatch:
+    inputs:
+      project_id:
+        required: true
+        type: string
+        description: 'Project ID to fetch from API'
+        default: 'ae0fb7f9-0ed4-45c4-a187-b3f0b08a360f'
+
+jobs:
+  convert-magic-motion:
   runs-on: ubuntu-latest
   outputs:
     api-data: ${{ steps.fetch-api.outputs.response }}
