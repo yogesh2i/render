@@ -106,7 +106,7 @@
 #         path: |
 #           public/
 #         retention-days: 1
-name: Test MagicRoll API
+name: Test MagicRoll API (Debug)
 on:
   workflow_dispatch:
     inputs:
@@ -114,75 +114,167 @@ on:
         required: true
         type: string
         description: 'Project ID to fetch from API'
-        default: 'ae0fb7f9-0ed4-45c4-a187-b3f0b08a360f'
+        default: '03f71a84-0c36-4b8e-b0d3-5f2757cfa9b5'
 
 jobs:
-  convert-magic-motion:
-  runs-on: ubuntu-latest
-  outputs:
-    api-data: ${{ steps.fetch-api.outputs.response }}
-  steps:
-  - name: 📦 Checkout
-    uses: actions/checkout@v4
-      
-  # STEP 1: Fetch data from MagicRoll API using http-request-action
-  - name: 🌐 Fetch Project Data from MagicRoll API
-    id: fetch-api
-    uses: fjogeleit/http-request-action@v1
-    with:
-      url: "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata"
-      method: "GET"
-      customHeaders: '{"Content-Type": "application/json", "Authorization": "Token ${{ secrets.MAGICROLL_API_KEY }}"}'
-      timeout: 30000
-      
-  - name: 📊 Display API Response (Safe)
-    run: |
-      echo "🚀 API GET test completed!"
-      echo "📋 Project ID: ${{ inputs.project_id }}"
-      echo "🌍 API URL: https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata"
-      echo "📊 Response Status: ${{ steps.fetch-api.outputs.statusCode }}"
-      
-      echo ""
-      echo "📤 Raw API Response (first 500 chars):"
-      echo '${{ steps.fetch-api.outputs.response }}' | head -c 500
-      
-      echo ""
-      echo "📤 API Response Length: $(echo '${{ steps.fetch-api.outputs.response }}' | wc -c)"
-      
-      # Save response to file for safer processing
-      echo '${{ steps.fetch-api.outputs.response }}' > api-response-raw.txt
-      
-      echo ""
-      echo "🔍 Response Analysis:"
-      if echo '${{ steps.fetch-api.outputs.response }}' | jq empty 2>/dev/null; then
-        echo "✅ Valid JSON detected"
+  test-api:
+    runs-on: ubuntu-latest
+    outputs:
+      api-data: ${{ steps.fetch-api.outputs.response }}
+      api-status: ${{ steps.fetch-api.outputs.statusCode }}
+    steps:
+    - name: 📦 Checkout
+      uses: actions/checkout@v4
+        
+    # STEP 1: Fetch data from MagicRoll API using http-request-action
+    - name: 🌐 Fetch Project Data from MagicRoll API
+      id: fetch-api
+      uses: fjogeleit/http-request-action@v1
+      with:
+        url: "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata"
+        method: "GET"
+        customHeaders: '{"Content-Type": "application/json", "Authorization": "Token ${{ secrets.MAGICROLL_API_KEY }}"}'
+        timeout: 30000
+        
+    - name: 📊 Analyze API Response
+      run: |
+        echo "🚀 API GET test completed!"
+        echo "=========================================="
+        echo "📋 Project ID: ${{ inputs.project_id }}"
+        echo "🌍 API URL: https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata"
+        echo "📊 HTTP Status Code: ${{ steps.fetch-api.outputs.statusCode }}"
+        
+        # Save response to file for analysis
+        echo '${{ steps.fetch-api.outputs.response }}' > api-response-raw.txt
+        
         echo ""
-        echo "📋 Response Summary:"
-        echo '${{ steps.fetch-api.outputs.response }}' | jq '{
-          project_id: .project_id,
-          magicmotion_count: (.magicmotion | length),
-          motion_graphics_count: (.motion_graphics_data | length),
-          enable_magic_motion: .enable_magic_motion
-        }' 2>/dev/null || echo "Could not parse JSON structure"
-      else
-        echo "❌ Invalid JSON detected"
-        echo "🔍 First 200 characters of response:"
-        echo '${{ steps.fetch-api.outputs.response }}' | head -c 200
+        echo "📏 Response Length: $(echo '${{ steps.fetch-api.outputs.response }}' | wc -c) characters"
+        
         echo ""
-        echo "🔍 Response type detection:"
-        if echo '${{ steps.fetch-api.outputs.response }}' | grep -q "<!DOCTYPE\|<html"; then
-          echo "📄 HTML content detected (possibly error page)"
-        elif echo '${{ steps.fetch-api.outputs.response }}' | grep -q "error\|Error\|ERROR"; then
-          echo "🚨 Error message detected"
+        echo "🔍 Response Type Analysis:"
+        if [ "${{ steps.fetch-api.outputs.statusCode }}" = "200" ]; then
+          echo "✅ HTTP 200 - Success status"
+        elif [ "${{ steps.fetch-api.outputs.statusCode }}" = "404" ]; then
+          echo "❌ HTTP 404 - Project not found"
+        elif [ "${{ steps.fetch-api.outputs.statusCode }}" = "401" ]; then
+          echo "❌ HTTP 401 - Authentication failed"
+        elif [ "${{ steps.fetch-api.outputs.statusCode }}" = "403" ]; then
+          echo "❌ HTTP 403 - Access forbidden"
+        else
+          echo "⚠️ HTTP ${{ steps.fetch-api.outputs.statusCode }} - Unexpected status"
+        fi
+        
+        echo ""
+        echo "📤 Raw Response Preview (first 300 characters):"
+        echo "================================================"
+        echo '${{ steps.fetch-api.outputs.response }}' | head -c 300
+        echo ""
+        echo "================================================"
+        
+        echo ""
+        echo "🔍 Content Type Detection:"
+        if echo '${{ steps.fetch-api.outputs.response }}' | grep -q "<!DOCTYPE\|<html\|<HTML"; then
+          echo "📄 HTML content detected (likely error page)"
+          echo "🔍 HTML Title/Error:"
+          echo '${{ steps.fetch-api.outputs.response }}' | grep -i "<title\|<h1\|error" | head -3 || echo "No specific error found in HTML"
+        elif echo '${{ steps.fetch-api.outputs.response }}' | grep -q "\"error\"\|\"message\"\|\"detail\""; then
+          echo "🚨 JSON Error response detected"
+          echo '${{ steps.fetch-api.outputs.response }}' | head -c 200
+        elif echo '${{ steps.fetch-api.outputs.response }}' | jq empty 2>/dev/null; then
+          echo "✅ Valid JSON detected"
+          echo ""
+          echo "📋 JSON Structure Analysis:"
+          echo '${{ steps.fetch-api.outputs.response }}' | jq 'keys' 2>/dev/null || echo "Could not parse JSON keys"
+          
+          echo ""
+          echo "📊 Project Data Summary:"
+          echo '${{ steps.fetch-api.outputs.response }}' | jq '{
+            project_id: .project_id // "missing",
+            enable_magic_motion: .enable_magic_motion // "missing",
+            magicmotion_count: (.magicmotion | length) // 0,
+            motion_graphics_count: (.motion_graphics_data | length) // 0,
+            has_base_url: (.base_url != null),
+            has_video_data: (.video_width != null and .video_height != null)
+          }' 2>/dev/null || echo "Could not parse project summary"
+          
+          if echo '${{ steps.fetch-api.outputs.response }}' | jq '.magicmotion[0]' >/dev/null 2>&1; then
+            echo ""
+            echo "📱 First Magic Motion Item:"
+            echo '${{ steps.fetch-api.outputs.response }}' | jq '.magicmotion[0] | {scene: .scene, data: .data}' 2>/dev/null
+          fi
+          
+          if echo '${{ steps.fetch-api.outputs.response }}' | jq '.motion_graphics_data[0]' >/dev/null 2>&1; then
+            echo ""
+            echo "🎬 First Motion Graphics Item:"
+            echo '${{ steps.fetch-api.outputs.response }}' | jq '.motion_graphics_data[0] | {scene: .scene, data: .data}' 2>/dev/null
+          fi
         else
           echo "❓ Unknown content type"
+          echo "🔍 First line content:"
+          echo '${{ steps.fetch-api.outputs.response }}' | head -1
         fi
-      fi
-      
-  - name: 📄 Upload Raw Response for Debugging
-    uses: actions/upload-artifact@v4
-    with:
-      name: api-response-debug-${{ inputs.project_id }}-${{ github.run_id }}
-      path: |
-        api-response-raw.txt
-      retention-days: 1
+        
+    - name: 🚨 Show Error Details (if any)
+      if: steps.fetch-api.outputs.statusCode != '200'
+      run: |
+        echo "❌ API Request Failed!"
+        echo "======================"
+        echo "Status Code: ${{ steps.fetch-api.outputs.statusCode }}"
+        echo "Project ID: ${{ inputs.project_id }}"
+        echo ""
+        echo "🔍 Troubleshooting:"
+        echo "1. Check if MAGICROLL_API_KEY secret is set correctly"
+        echo "2. Verify the project ID exists: ${{ inputs.project_id }}"
+        echo "3. Confirm API endpoint is correct"
+        echo "4. Check if API key has proper permissions"
+        echo ""
+        echo "📄 Full Error Response:"
+        echo '${{ steps.fetch-api.outputs.response }}'
+        
+    - name: ✅ Show Success Details (if successful)
+      if: steps.fetch-api.outputs.statusCode == '200'
+      run: |
+        echo "✅ API Request Successful!"
+        echo "========================="
+        echo "Status Code: ${{ steps.fetch-api.outputs.statusCode }}"
+        echo "Project ID: ${{ inputs.project_id }}"
+        
+        if echo '${{ steps.fetch-api.outputs.response }}' | jq empty 2>/dev/null; then
+          echo ""
+          echo "🎉 Valid JSON response received!"
+          echo "Ready to proceed with VideoSDK conversion"
+          
+          MAGICMOTION_COUNT=$(echo '${{ steps.fetch-api.outputs.response }}' | jq '.magicmotion | length' 2>/dev/null || echo "0")
+          MOTION_COUNT=$(echo '${{ steps.fetch-api.outputs.response }}' | jq '.motion_graphics_data | length' 2>/dev/null || echo "0")
+          
+          echo "📊 Videos to process:"
+          echo "  - Magic Motion items: $MAGICMOTION_COUNT"
+          echo "  - Motion Graphics items: $MOTION_COUNT"
+        else
+          echo ""
+          echo "⚠️ Response is not valid JSON - needs investigation"
+        fi
+        
+    - name: 📄 Upload Raw Response for Debugging
+      uses: actions/upload-artifact@v4
+      with:
+        name: api-response-debug-${{ inputs.project_id }}-${{ github.run_id }}
+        path: |
+          api-response-raw.txt
+        retention-days: 2
+        
+    - name: 📋 Final Summary
+      run: |
+        echo ""
+        echo "📋 Test Summary"
+        echo "==============="
+        echo "Project ID: ${{ inputs.project_id }}"
+        echo "HTTP Status: ${{ steps.fetch-api.outputs.statusCode }}"
+        echo "Response Size: $(echo '${{ steps.fetch-api.outputs.response }}' | wc -c) chars"
+        echo "Artifact: api-response-debug-${{ inputs.project_id }}-${{ github.run_id }}"
+        
+        if [ "${{ steps.fetch-api.outputs.statusCode }}" = "200" ]; then
+          echo "Status: ✅ Ready for next step (VideoSDK)"
+        else
+          echo "Status: ❌ Fix API issues before proceeding"
+        fi
