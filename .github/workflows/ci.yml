@@ -130,7 +130,7 @@ jobs:
         
     - name: 📊 Show Data
       run: |
-        echo "Project ID: ${{ inputs.project_id }}"
+        echo "Project ID is: ${{ inputs.project_id }}"
         echo ""
         echo "Raw Data:"
-        echo '${{ steps.get-data.outputs.response }}'
+        echo "${{ steps.get-data.outputs.response }}"
