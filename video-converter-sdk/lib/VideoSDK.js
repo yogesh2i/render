@@ -103,39 +103,106 @@ class VideoConverterSDK {
     try {
       console.log(`📝 Processing videos in parallel...`);
 
-       const layerEntries = Object.entries(inputJSON.layers);
-      const processedLayers = await Promise.all(
-        layerEntries.map(async ([layerId, layerObj]) => {
-          let newMediaUrl = layerObj.media_url;
-          if (
-            typeof newMediaUrl === 'string' &&
-            newMediaUrl.includes('magicpatterns.app') &&
-            !newMediaUrl.toLowerCase().endsWith('.mp4')
-          ) {
-            const result = await this.processVideo({ data: newMediaUrl }, layerId);
-            newMediaUrl = result.converted_url;
+    // Find all image items from trackItemDetailsMap that need conversion
+    const trackItemDetailsEntries = Object.entries(inputJSON.timelineData.trackItemDetailsMap);
+    const imageItemsToProcess = trackItemDetailsEntries.filter(([trackId, trackDetails]) => 
+      trackDetails.type === 'image' &&
+      trackDetails.details &&
+      trackDetails.details.src &&
+      typeof trackDetails.details.src === 'string' &&
+      trackDetails.details.src.includes('magicpatterns.app') &&
+      !trackDetails.details.src.toLowerCase().endsWith('.mp4')
+    );
+
+    console.log(`🖼️ Found ${imageItemsToProcess.length} image items to convert...`);
+
+    // Process all image items in parallel
+    const processedImageItems = await Promise.all(
+      imageItemsToProcess.map(async ([trackId, trackDetails]) => {
+        console.log(`🔄 Processing image item: ${trackId}`);
+        
+        try {
+          const result = await this.processVideo({ data: trackDetails.details.src }, trackId);
+          return {
+            trackId,
+            newSrc: result.converted_url,
+            success: true
+          };
+        } catch (error) {
+          console.error(`❌ Failed to process ${trackId}:`, error.message);
+          return {
+            trackId,
+            newSrc: trackDetails.details.src, // Keep original on error
+            success: false
+          };
+        }
+      })
+    );
+
+    // Create a map of trackId -> newSrc for easy lookup
+    const urlUpdates = Object.fromEntries(
+      processedImageItems.map(item => [item.trackId, item.newSrc])
+    );
+
+    // Update trackItemDetailsMap
+    const updatedTrackItemDetailsMap = Object.fromEntries(
+      trackItemDetailsEntries.map(([trackId, trackDetails]) => {
+        if (urlUpdates[trackId]) {
+          return [
+            trackId,
+            {
+              ...trackDetails,
+              details: {
+                ...trackDetails.details,
+                src: urlUpdates[trackId]
+              }
+            }
+          ];
+        } else {
+          // No change needed
+          return [trackId, trackDetails];
+        }
+      })
+    );
+
+    // Update trackItemsMap (src is also inside details object here)
+    const trackItemsMapEntries = Object.entries(inputJSON.timelineData.trackItemsMap);
+    const updatedTrackItemsMap = Object.fromEntries(
+      trackItemsMapEntries.map(([trackId, trackItem]) => {
+        // If this trackId had a URL update, synchronize it in trackItemsMap too
+        if (urlUpdates[trackId]) {
+          // Update src inside details object
+          if (trackItem.details && trackItem.details.src) {
             return [
-              layerId,
+              trackId,
               {
-                ...layerObj,
-                media_url: newMediaUrl,
-                choices: [newMediaUrl]
+                ...trackItem,
+                details: {
+                  ...trackItem.details,
+                  src: urlUpdates[trackId]
+                }
               }
             ];
           } else {
-            // No conversion needed, keep original
-            return [layerId, layerObj];
+            // Keep original structure if no details.src exists
+            return [trackId, trackItem];
           }
-        })
-      );
+        } else {
+          // No change needed
+          return [trackId, trackItem];
+        }
+      })
+    );
 
-      // Reconstruct layers object
-      const updatedLayers = Object.fromEntries(processedLayers);
-      // Build output JSON in same format as input
-      const output = {
-        ...inputJSON,
-        layers: updatedLayers
-      };
+    // Build output JSON in exact same format as input
+    const output = {
+      ...inputJSON,
+      timelineData: {
+        ...inputJSON.timelineData,
+        trackItemsMap: updatedTrackItemsMap,
+        trackItemDetailsMap: updatedTrackItemDetailsMap
+      }
+    };
 
       const processingTime = Date.now() - startTime;
       console.log(`🎉 Conversion completed in ${processingTime}ms!`);
@@ -462,7 +529,7 @@ async uploadVideoToS3(localFilePath, bucketName, folderPrefix = 'converted-video
       Body: fileContent,
       ContentType: 'video/mp4',
       ACL: 'public-read', // Make it publicly accessible
-      CacheControl: 'max-age=31536000' // Cache for 1 year
+      CacheControl: 'max-age=86400' // Cache for 1 year
     };
 
     // Upload to S3
