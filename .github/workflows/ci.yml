@@ -106,7 +106,35 @@
 #         path: |
 #           public/
 #         retention-days: 1
-name: Show API Data
+# name: Show API Data
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       project_id:
+#         required: true
+#         type: string
+#         default: '03f71a84-0c36-4b8e-b0d3-5f2757cfa9b5'
+
+# jobs:
+#   show-data:
+#     runs-on: ubuntu-latest
+#     steps:
+#     - name: 🌐 Get API Data
+#       id: get-data
+#       uses: fjogeleit/http-request-action@v1
+#       continue-on-error: true
+#       with:
+#         url: "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata"
+#         method: "GET"
+#         customHeaders: '{"Content-Type": "application/json", "Authorization": "Token ${{ secrets.MAGICROLL_API_KEY }}"}'
+        
+#     - name: Show Response
+#       run: |
+#         echo ${{ steps.get-data.outputs.response }}
+#         echo ${{ steps.get-data.outputs.headers }}
+#         echo ${{ steps.get-data.outputs.status }}
+
+name: Show API Data and Convert
 on:
   workflow_dispatch:
     inputs:
@@ -118,6 +146,8 @@ on:
 jobs:
   show-data:
     runs-on: ubuntu-latest
+    outputs:
+      api-response: ${{ steps.get-data.outputs.response }}
     steps:
     - name: 🌐 Get API Data
       id: get-data
@@ -133,3 +163,201 @@ jobs:
         echo ${{ steps.get-data.outputs.response }}
         echo ${{ steps.get-data.outputs.headers }}
         echo ${{ steps.get-data.outputs.status }}
+
+  converter:
+    runs-on: ubuntu-latest
+    needs: show-data
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Cache Dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          node_modules
+          ~/.cache/ms-playwright
+        key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json') }}
+        
+    - name: Install Dependencies
+      run: |
+        npm ci
+        npx playwright install chromium --with-deps
+        sudo apt-get update && sudo apt-get install -y ffmpeg
+        
+    - name: Setup AWS
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-south-1
+        
+    - name: Convert Videos
+      env:
+        S3_BUCKET_NAME: magicmotion-export
+      run: |
+        echo "Starting video conversion..."
+        
+        # Save API response to file
+        echo '${{ needs.show-data.outputs.api-response }}' > input.json
+        
+        # Run VideoSDK
+        node -e "
+        const VideoConverterSDK = require('./video-converter-sdk/lib/VideoSDK');
+        const fs = require('fs');
+        
+        async function main() {
+          const inputData = JSON.parse(fs.readFileSync('input.json', 'utf8'));
+          
+          const sdk = new VideoConverterSDK({
+            outputDir: './public/converted-videos',
+            fps: 30,
+            duration: 7
+          });
+          
+          const result = await sdk.convert(inputData);
+          
+          fs.writeFileSync('output.json', JSON.stringify(result, null, 2));
+          
+          await sdk.cleanup();
+          
+          console.log('Conversion completed');
+        }
+        
+        main().catch(error => {
+          console.error('Error:', error);
+          process.exit(1);
+        });
+        "
+        
+        echo "Videos converted successfully"
+        
+    - name: Update Database via POST API
+      id: update-data
+      uses: fjogeleit/http-request-action@v1
+      with:
+        url: "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata/"
+        method: "POST"
+        customHeaders: '{"Content-Type": "application/json", "Authorization": "Token ${{ secrets.MAGICROLL_API_KEY }}"}'
+        file: "output.json"
+        
+    - name: Show POST Result
+      run: |
+        echo  ${{ inputs.project_id }}
+        echo ${{ steps.update-data.outputs.statusCode }}
+        echo  ${{ steps.update-data.outputs.response }}
+
+
+
+
+
+# #  step1 
+# - name: 🌐 Get API Data
+#   id: get-data
+#   uses: fjogeleit/http-request-action@v1
+#   continue-on-error: true
+#   with:
+#     url: "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata"
+#     method: "GET"
+#     customHeaders: '{"Content-Type": "application/json", "Authorization": "Token ${{ secrets.MAGICROLL_API_KEY }}"}'
+    
+# - name: Show API Response
+#   run: |
+#     echo ${{ steps.get-data.outputs.response }}
+#     echo ${{ steps.get-data.outputs.headers }}
+#     echo ${{ steps.get-data.outputs.status }}
+
+
+# # step2
+# - name: 📦 Checkout
+#   uses: actions/checkout@v4
+  
+# - name: 🔧 Setup Node.js
+#   uses: actions/setup-node@v4
+#   with:
+#     node-version: '18'
+#     cache: 'npm'
+    
+# - name: 📚 Cache Dependencies
+#   uses: actions/cache@v4
+#   with:
+#     path: |
+#       node_modules
+#       ~/.cache/ms-playwright
+#     key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json') }}
+    
+# - name: 📦 Install Dependencies
+#   run: |
+#     npm ci
+#     npx playwright install chromium --with-deps
+#     sudo apt-get update && sudo apt-get install -y ffmpeg
+    
+# - name: ⚙️ Setup AWS
+#   uses: aws-actions/configure-aws-credentials@v4
+#   with:
+#     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#     aws-region: ap-south-1
+
+# # step3 
+# - name: 🎬 Convert Videos using VideoSDK
+#   env:
+#     S3_BUCKET_NAME: magicmotion-export
+#   run: |
+#     echo "Starting video conversion..."
+    
+#     # Save API response to file
+#     echo '${{ steps.get-data.outputs.response }}' > input.json
+    
+#     # Run VideoSDK
+#     node -e "
+#     const VideoConverterSDK = require('./lib/VideoSDK');
+#     const fs = require('fs');
+    
+#     async function main() {
+#       const inputData = JSON.parse(fs.readFileSync('input.json', 'utf8'));
+      
+#       const sdk = new VideoConverterSDK({
+#         outputDir: './public/converted-videos',
+#         fps: 30,
+#         duration: 7
+#       });
+      
+#       const result = await sdk.convert(inputData);
+      
+#       fs.writeFileSync('output.json', JSON.stringify(result, null, 2));
+      
+#       await sdk.cleanup();
+      
+#       console.log('Conversion completed');
+#     }
+    
+#     main().catch(error => {
+#       console.error('Error:', error);
+#       process.exit(1);
+#     });
+#     "
+    
+#     echo "Videos converted successfully"
+#  #step 4
+#   - name: Update Database via PATCH API
+#         id: update-data
+#         uses: fjogeleit/http-request-action@v1
+#         with:
+#           url: "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata"
+#           method: "POST"
+#           customHeaders: '{"Content-Type": "application/json", "Authorization": "Token ${{ secrets.MAGICROLL_API_KEY }}"}'
+#           file: "output.json"
+
+#       - name: Show POST Result
+#         run: |
+#           echo  ${{ inputs.project_id }}
+#           echo ${{ steps.update-data.outputs.statusCode }}
+#           echo ${{ steps.update-data.outputs.response }}
+

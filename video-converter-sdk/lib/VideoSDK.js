@@ -101,59 +101,40 @@ class VideoConverterSDK {
     const startTime = Date.now();
 
     try {
-      console.log(`📝 Processing ${inputJSON.magicmotion.length} videos in parallel...`);
+      console.log(`📝 Processing videos in parallel...`);
 
-      // Process all videos in parallel using single browser/context
-      const videoPromises = inputJSON.magicmotion.map(async (video, index) => {
-        try {
-          const result = await this.processVideo(video, index);
-          return {
-            ...video, // Keep original fields: data, start_frame, end_frame
-            graphic_motion_url: video.data,
-            data: result.converted_url
-          };
-        } catch (error) {
-          console.error(`❌ Video ${index + 1} failed:`, error.message);
-          return {
-            ...video,
-            graphic_motion_url: video.data,
-            data: '', // Empty URL on failure
-           
-          };
-        }
-      });
+       const layerEntries = Object.entries(inputJSON.layers);
+      const processedLayers = await Promise.all(
+        layerEntries.map(async ([layerId, layerObj]) => {
+          let newMediaUrl = layerObj.media_url;
+          if (
+            typeof newMediaUrl === 'string' &&
+            newMediaUrl.includes('magicpatterns.app') &&
+            !newMediaUrl.toLowerCase().endsWith('.mp4')
+          ) {
+            const result = await this.processVideo({ data: newMediaUrl }, layerId);
+            newMediaUrl = result.converted_url;
+            return [
+              layerId,
+              {
+                ...layerObj,
+                media_url: newMediaUrl,
+                choices: [newMediaUrl]
+              }
+            ];
+          } else {
+            // No conversion needed, keep original
+            return [layerId, layerObj];
+          }
+        })
+      );
 
-      // Wait for all videos to complete
-      const processedVideos = await Promise.all(videoPromises);
-     let updatedMotionGraphicsData = inputJSON.motion_graphics_data;
-    
-    if (inputJSON.motion_graphics_data && Array.isArray(inputJSON.motion_graphics_data)) {
-      updatedMotionGraphicsData = inputJSON.motion_graphics_data.map((video, index) => {
-        // Find corresponding processed video from magicmotion by scene or index
-        const correspondingProcessed = processedVideos.find(processed => 
-          processed.scene === video.scene || processed.metadata._id === video.metadata._id
-        ) || processedMagicMotion[index]; // Fallback to index matching
-
-        if (correspondingProcessed) {
-          return {
-            ...video, // Keep original fields
-            graphic_motion_url: video.data, 
-            data: correspondingProcessed.data 
-          };
-        } else {
-          return {
-            ...video,
-            graphic_motion_url: video.data,
-            data: '' 
-          };
-        }
-      });
-    }
+      // Reconstruct layers object
+      const updatedLayers = Object.fromEntries(processedLayers);
       // Build output JSON in same format as input
       const output = {
         ...inputJSON,
-        magicmotion: processedVideos, // Replace magicmotion array with processed results
-        motion_graphics_data: updatedMotionGraphicsData
+        layers: updatedLayers
       };
 
       const processingTime = Date.now() - startTime;
@@ -177,8 +158,14 @@ class VideoConverterSDK {
     if (!data) {
       throw new Error('Invalid video data: data, start_frame, and end_frame are required');
     }
+if (data.toLowerCase().endsWith('.mp4') || data.includes('.mp4?') || data.includes('.mp4#')) {
+    console.log(`⏭️ [${index + 1}] Skipping - already MP4: ${data}`);
+    return {
+      converted_url: data // Return original MP4 URL
+    };
+  }
 
-
+  
       const frameCount = this.config.duration * this.config.fps;  
     const projectId = `sdk_${Date.now()}_${index}`;
     
@@ -475,8 +462,7 @@ async uploadVideoToS3(localFilePath, bucketName, folderPrefix = 'converted-video
       Body: fileContent,
       ContentType: 'video/mp4',
       ACL: 'public-read', // Make it publicly accessible
-      CacheControl: 'max-age=86400',
-      Expires: new Date(Date.now() + 24 * 60 * 60 * 1000) // 1 day from now
+      CacheControl: 'max-age=31536000' // Cache for 1 year
     };
 
     // Upload to S3
