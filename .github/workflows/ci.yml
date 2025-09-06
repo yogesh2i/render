@@ -206,7 +206,9 @@ jobs:
         echo "Starting video conversion..."
         
         # Save API response to file
-        echo '${{ needs.show-data.outputs.api-response }}' > input.json
+        cat > input.json << EOF
+        ${{ needs.show-data.outputs.api-response }}
+        EOF
         
         # Run VideoSDK
         node -e "
