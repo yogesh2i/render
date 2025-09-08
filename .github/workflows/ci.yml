@@ -274,9 +274,14 @@ jobs:
       # Step 1: Get Data and Save to File
       - name: 🌐 Get API Data and Save
         run: |
-          curl -s -H "Content-Type: application/json" -H "Authorization: Token ${{ secrets.MAGICROLL_API_KEY }}" \
-            "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata" > input.json
-          ls -lh input.json
+          curl -s -w "\nStatus: %{http_code}\n" -H "Content-Type: application/json" -H "Authorization: Token ${{ secrets.MAGICROLL_API_KEY }}" \
+            "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata" -o input.json
+          echo "---- input.json ----"
+          cat input.json
+          echo "--------------------"
+          # Show status code
+          curl -s -o /dev/null -w "%{http_code}" -H "Content-Type: application/json" -H "Authorization: Token ${{ secrets.MAGICROLL_API_KEY }}" \
+            "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata"
 
       # Step 1.5: Print input.json contents for debugging
       - name: Print input.json contents
