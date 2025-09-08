@@ -228,7 +228,6 @@
 #           echo  ${{ inputs.project_id }}
 #           echo ${{ steps.update-data.outputs.statusCode }}
 #           echo ${{ steps.update-data.outputs.response }}
-
 name: fix payloads
 on:
   workflow_dispatch:
@@ -277,21 +276,8 @@ jobs:
         run: |
           curl -s -H "Content-Type: application/json" -H "Authorization: Token ${{ secrets.MAGICROLL_API_KEY }}" \
             "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata" > input.json
+            cat input.json
           ls -lh input.json
-
-      # Step 2: Upload input.json as artifact
-      - name: Upload input.json artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: input-json
-          path: input.json
-
-      # Step 3: Download input.json artifact (for isolation)
-      - name: Download input.json artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: input-json
-          path: .
 
       # Step 4: Convert Videos
       - name: Convert Videos
