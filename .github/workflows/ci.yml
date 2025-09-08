@@ -259,6 +259,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
+          npm ci
           npm i aws-sdk
           npx playwright install chromium --with-deps
           sudo apt-get update && sudo apt-get install -y ffmpeg
@@ -273,14 +274,9 @@ jobs:
       # Step 1: Get Data and Save to File
       - name: 🌐 Get API Data and Save
         run: |
-          curl -s -L -w "\nStatus: %{http_code}\n" -H "Content-Type: application/json" -H "Authorization: Token ${{ secrets.MAGICROLL_API_KEY }}" \
-            "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata" -o input.json
-          echo "---- input.json ----"
-          cat input.json
-          echo "--------------------"
-          # Show status code
-          curl -s -o /dev/null -w "%{http_code}" -H "Content-Type: application/json" -H "Authorization: Token ${{ secrets.MAGICROLL_API_KEY }}" \
-            "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata"
+          curl -s -L -H "Content-Type: application/json" -H "Authorization: Token ${{ secrets.MAGICROLL_API_KEY }}" \
+            "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata" > input.json
+          ls -lh input.json
 
       # Step 1.5: Print input.json contents for debugging
       - name: Print input.json contents
@@ -289,17 +285,21 @@ jobs:
           cat input.json
           echo "--------------------------"
 
-      # Step 4: Convert Videos
-      - name: Convert Videos
+      # Step 4: Convert and POST Videos
+      - name: Convert and POST Videos
         env:
           S3_BUCKET_NAME: magicmotion-export
+          API_URL: https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata/
+          API_TOKEN: ${{ secrets.MAGICROLL_API_KEY }}
         run: |
-          echo "Starting video conversion..."
+          echo "Starting video conversion and direct POST..."
           echo "Checking input.json before conversion..."
           cat input.json
           if [ ! -s input.json ]; then echo "input.json is empty!"; exit 1; fi
+          npm install axios
           node -e "
           const VideoConverterSDK = require('./video-converter-sdk/lib/VideoSDK');
+          const axios = require('axios');
           const fs = require('fs');
           let inputData;
           try {
@@ -315,25 +315,19 @@ jobs:
               duration: 7
             });
             const result = await sdk.convert(inputData);
-            fs.writeFileSync('output.json', JSON.stringify(result, null, 2));
+            // POST result directly
+            const response = await axios.post(process.env.API_URL, result, {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Token ' + process.env.API_TOKEN
+              }
+            });
+            console.log('POST response:', response.status, response.data);
             await sdk.cleanup();
-            console.log('Conversion completed');
+            console.log('Conversion and POST completed');
           }
           main().catch(error => {
             console.error('Error:', error);
             process.exit(1);
           });
           "
-          echo "Videos converted successfully"
-
-      # Step 5: POST output.json using curl (handles large payloads)
-      - name: Update Database via POST API (curl, direct JSON)
-        run: |
-          curl -s -L -X POST "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata/" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Token ${{ secrets.MAGICROLL_API_KEY }}" \
-            -d @output.json \
-            -w "\nStatus: %{http_code}\n" \
-            -o post_response.txt
-          cat post_response.txt
-
