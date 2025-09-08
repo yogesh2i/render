@@ -259,7 +259,6 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          npm ci
           npm i aws-sdk
           npx playwright install chromium --with-deps
           sudo apt-get update && sudo apt-get install -y ffmpeg
@@ -274,7 +273,7 @@ jobs:
       # Step 1: Get Data and Save to File
       - name: 🌐 Get API Data and Save
         run: |
-          curl -s -w "\nStatus: %{http_code}\n" -H "Content-Type: application/json" -H "Authorization: Token ${{ secrets.MAGICROLL_API_KEY }}" \
+          curl -s -L -w "\nStatus: %{http_code}\n" -H "Content-Type: application/json" -H "Authorization: Token ${{ secrets.MAGICROLL_API_KEY }}" \
             "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata" -o input.json
           echo "---- input.json ----"
           cat input.json
@@ -330,7 +329,7 @@ jobs:
       # Step 5: POST output.json using curl (handles large payloads)
       - name: Update Database via POST API (curl)
         run: |
-          curl -s -X POST "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata/" \
+          curl -s -L -X POST "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata/" \
             -H "Content-Type: application/json" \
             -H "Authorization: Token ${{ secrets.MAGICROLL_API_KEY }}" \
             --data-binary "@output.json" \
