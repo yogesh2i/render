@@ -327,12 +327,12 @@ jobs:
           echo "Videos converted successfully"
 
       # Step 5: POST output.json using curl (handles large payloads)
-      - name: Update Database via POST API (curl)
+      - name: Update Database via POST API (curl, direct JSON)
         run: |
           curl -s -L -X POST "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata/" \
             -H "Content-Type: application/json" \
             -H "Authorization: Token ${{ secrets.MAGICROLL_API_KEY }}" \
-            --data-binary "@output.json" \
+            -d @output.json \
             -w "\nStatus: %{http_code}\n" \
             -o post_response.txt
           cat post_response.txt
