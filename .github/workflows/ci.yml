@@ -276,8 +276,14 @@ jobs:
         run: |
           curl -s -H "Content-Type: application/json" -H "Authorization: Token ${{ secrets.MAGICROLL_API_KEY }}" \
             "https://api.magicrollai.buzz/api/v1/project/${{ inputs.project_id }}/editdata" > input.json
-            cat input.json
           ls -lh input.json
+
+      # Step 1.5: Print input.json contents for debugging
+      - name: Print input.json contents
+        run: |
+          echo "--- input.json contents ---"
+          cat input.json
+          echo "--------------------------"
 
       # Step 4: Convert Videos
       - name: Convert Videos
@@ -285,11 +291,20 @@ jobs:
           S3_BUCKET_NAME: magicmotion-export
         run: |
           echo "Starting video conversion..."
+          echo "Checking input.json before conversion..."
+          cat input.json
+          if [ ! -s input.json ]; then echo "input.json is empty!"; exit 1; fi
           node -e "
           const VideoConverterSDK = require('./video-converter-sdk/lib/VideoSDK');
           const fs = require('fs');
+          let inputData;
+          try {
+            inputData = JSON.parse(fs.readFileSync('input.json', 'utf8'));
+          } catch (e) {
+            console.error('Failed to parse input.json:', e);
+            process.exit(1);
+          }
           async function main() {
-            const inputData = JSON.parse(fs.readFileSync('input.json', 'utf8'));
             const sdk = new VideoConverterSDK({
               outputDir: './public/converted-videos',
               fps: 30,
