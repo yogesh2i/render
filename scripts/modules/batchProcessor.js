@@ -134,11 +134,18 @@ class BatchProcessor {
       const customFilename = `${domainName}.webm`;
       const customFinalPath = path.join(this.config.OUTPUT_DIR, customFilename);
 
-  // Move to final location with custom filename
-  await fs.copyFile(processedVideoPath, customFinalPath);
+      const fsSync = require('fs');
+      if (!fsSync.existsSync(processedVideoPath)) {
+        console.error(`❌ Trimmed video file not found: ${processedVideoPath}`);
+        throw new Error(`Trimmed video file not found: ${processedVideoPath}`);
+      }
+        // If the processed video is not already named as desired, rename it
+        if (processedVideoPath !== customFinalPath) {
+          await fs.rename(processedVideoPath, customFinalPath);
+        }
 
       // Clean up temporary files
-      await this.fileUtils.cleanupTempFiles([videoPath, processedVideoPath], customFinalPath);
+        await this.fileUtils.cleanupTempFiles([videoPath], customFinalPath);
 
       // Upload to S3 and get the S3 URL, using the custom filename
       const bucketName =  'magicmotion-export';
