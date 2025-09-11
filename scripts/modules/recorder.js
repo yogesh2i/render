@@ -1,6 +1,5 @@
-const { chromium } = require('playwright');
-
-
+const {  devices } = require('playwright');
+const iphone12 = devices['iPhone 12'];
 /**
  * Website recording logic using Playwright
  */
@@ -12,59 +11,36 @@ class Recorder {
   /**
    * Record a website directly with pre-loading optimization
    */
-  async recordWebsiteDirect(url, duration) {
-    let browser = null;
+  async recordWebsiteDirect(url, duration,browser) {
+  
     let context = null;
     
     try {
       console.log(`Recording ${url} for ${duration}s`);
       
-      browser = await chromium.launch({ 
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-web-security',
-          '--allow-running-insecure-content'
-        ]
-      });
+    
       
       const timestamp = Date.now();
       const outputDir = this.config.OUTPUT_DIR;
       
       // First load page WITHOUT recording (optimization)
       let context = await browser.newContext({
-        viewport: { width: 1080, height: 1920 },
+        ...iphone12,
         recordVideo: {
           dir: outputDir,
-          size: { width: 1080, height: 1920 }
+          size:  iphone12.viewport
         }
       });
 
-      const loadingPage = await context.newPage();
+  
       
       console.log('📥 Loading website...');
-      
-      try {
-        // Navigate and wait for page to load - NOT RECORDED
-        await loadingPage.goto(url, { 
-          waitUntil: 'networkidle', 
-          timeout: 30000 
-        });
-      } catch (navigationError) {
-        throw new Error(`Failed to load ${url}: ${navigationError.message}`);
-      }
-      
-      // Wait for content to stabilize - NOT RECORDED
-      console.log('⏳ Waiting for content to load...');
-      await loadingPage.waitForSelector('img');
      
       const page = await context.newPage();
       
       try {
-        // Navigate again (this time with recording) - should be fast since content is cached
         await page.goto(url, { 
-          waitUntil: 'load', // Faster since page was pre-loaded
+          waitUntil: 'domcontentloaded', 
           timeout: 15000 
         });
       } catch (recordingNavigationError) {
@@ -97,7 +73,6 @@ class Recorder {
     } finally {
       try {
         if (context) await context.close();
-        if (browser) await browser.close();
       } catch (e) {
         console.warn('Cleanup error');
       }

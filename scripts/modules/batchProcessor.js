@@ -2,7 +2,7 @@ const path = require('path');
 const Recorder = require('./recorder');     
 const videoProcessorModule = require('./videoProcessor');
 const fileUtilsModule = require('./fileUtils');
-
+const { chromium, devices } = require('playwright');
 /**
  * Batch processing and concurrency management
  */
@@ -23,14 +23,22 @@ class BatchProcessor {
     
     console.log(`🚨 Processing ${urls.length} URLs with FAIL-FAST mode enabled`);
     console.log(`⚡ Will terminate immediately on first failure`);
-    
+    const browser = await chromium.launch({ 
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-web-security',
+          '--allow-running-insecure-content'
+        ]
+      });
     // Process URLs in batches according to MAX_CONCURRENT
     for (let i = 0; i < urls.length; i += this.config.MAX_CONCURRENT) {
       const batch = urls.slice(i, i + this.config.MAX_CONCURRENT);
       console.log(`\n🔄 Processing batch ${Math.floor(i / this.config.MAX_CONCURRENT) + 1} (${batch.length} URLs)`);
       
       const batchPromises = batch.map((urlData, index) => 
-        this.processUrl(urlData, i + index + 1, urls.length)
+        this.processUrl(urlData, i + index + 1, urls.length,browser)
       );
       
       try {
@@ -51,20 +59,21 @@ class BatchProcessor {
     }
     
     console.log(`🎉 ALL ${urls.length} URLs processed successfully - No failures detected`);
+    if (browser) await browser.close();
     return { results, errors: [] };
   }
 
   /**
    * Process a single URL
    */
-  async processUrl(urlData, index, total) {
+  async processUrl(urlData, index, total,browser) {
     const { url, duration } = urlData;
     
     try {
       console.log(`\n[${index}/${total}] Processing: ${url}`);
       
       // Record the website
-      const recordingResult = await this.recorder.recordWebsiteDirect(url, duration);
+      const recordingResult = await this.recorder.recordWebsiteDirect(url, duration,browser);
       const { video, timestamp, outputDir } = recordingResult;
       
       // Wait for video file to be written
