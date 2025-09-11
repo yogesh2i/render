@@ -1,0 +1,8 @@
+[
+  {
+    "success": false,
+    "error": "Conversion terminated due to failure: S3 upload failed: Missing credentials in config, if using AWS_CONFIG_FILE, set AWS_SDK_LOAD_CONFIG=1",
+    "timestamp": "2025-09-11T18:06:00.961Z",
+    "terminatedEarly": true
+  }
+]

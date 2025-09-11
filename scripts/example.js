@@ -11,7 +11,10 @@ const inputFile = path.join(__dirname, 'input.json');
 // Read and parse input
 const input = {
   "urls": [
-    "https://project-real-time-language-translation-animation-828.magicpatterns.app/"
+    "https://project-holographic-ai-interface-animation-636.magicpatterns.app/",
+    "https://project-real-time-language-translation-animation-828.magicpatterns.app/",
+    "https://project-stock-market-analysis-animation-824.magicpatterns.app/",
+    "https://project-ai-driven-time-progression-animation-346.magicpatterns.app/"
   ],
   "duration": 7,
   "outputDir": "./output"
