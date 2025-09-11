@@ -134,8 +134,8 @@ class BatchProcessor {
       const customFilename = `${domainName}.webm`;
       const customFinalPath = path.join(this.config.OUTPUT_DIR, customFilename);
 
-      // Move to final location with custom filename
-      fs.copyFileSync(processedVideoPath, customFinalPath);
+  // Move to final location with custom filename
+  await fs.copyFile(processedVideoPath, customFinalPath);
 
       // Clean up temporary files
       await this.fileUtils.cleanupTempFiles([videoPath, processedVideoPath], customFinalPath);
