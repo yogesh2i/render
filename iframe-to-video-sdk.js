@@ -21,11 +21,9 @@ class IframeToVideoSDK {
       ...config
     };
     
-    // this.s3 = new AWS.S3({
-    //   region: this.config.AWS_REGION,
-    //   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    //   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-    // });
+    this.s3 = new AWS.S3({
+      region: this.config.AWS_REGION
+    });
     
     this.browser = null;
     this.isInitialized = false;
