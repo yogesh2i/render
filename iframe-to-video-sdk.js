@@ -118,6 +118,7 @@ class IframeToVideoSDK {
   }
 
   async recordWebsiteDirect(url, duration) {
+  
     let context = null;
     
     try {
@@ -166,7 +167,7 @@ class IframeToVideoSDK {
       await context.close();
       context = null;
       
-      return { video, timestamp, outputDir };
+      return { video, outputDir };
       
     } catch (error) {
       console.error(`❌ Recording failed for ${url}:`, error.message);
@@ -200,9 +201,9 @@ class IframeToVideoSDK {
     });
   }
 
-  async trimVideoSimple(inputPath, targetDuration, outputDir, timestamp) {
+  async trimVideoSimple(inputPath, targetDuration, outputDir, filename) {
     return new Promise((resolve, reject) => {
-      const outputPath = path.join(outputDir, `website-${timestamp}.webm`);
+      const outputPath = path.join(outputDir, `${filename}.webm`);
       
       console.log('📏 Getting video duration using ffmpeg...');
       
@@ -312,14 +313,17 @@ class IframeToVideoSDK {
       const url = data.data || data;
       const duration = this.config.DEFAULT_DURATION;
       
+      // Generate filename from URL (remove https:// and sanitize)
+      const urlBasedName = url.replace(/^https?:\/\//, '').replace(/[^a-zA-Z0-9.-]/g, '-');
+      
       // Step 1: Record website
-      const { video, timestamp, outputDir } = await this.recordWebsiteDirect(url, duration); 
+      const { video, outputDir } = await this.recordWebsiteDirect(url, duration); 
       
       // Step 2: Wait for video file to be ready
       const videoPath = await this.waitForVideoFile(video, this.config.MAX_WAIT_TIME);
       
-      // Step 3: Trim video to target duration
-      const trimmedPath = await this.trimVideoSimple(videoPath, duration, outputDir, timestamp);
+      // Step 3: Trim video to target duration with URL-based name
+      const trimmedPath = await this.trimVideoSimple(videoPath, duration, outputDir, urlBasedName);
       
       // Step 4: Upload to S3
       const s3Url = await this.uploadVideoToS3(trimmedPath);
@@ -375,10 +379,13 @@ class IframeToVideoSDK {
         imageItemsToProcess.map(async ([trackId, trackDetails]) => {
           console.log(`🔄 Processing image item: ${trackId}`);
           
+          const originalSrc = trackDetails.details.src;
+          
           try {
-            const result = await this.processVideo({ data: trackDetails.details.src }, trackId);
+            const result = await this.processVideo({ data: originalSrc }, trackId);
             return {
               trackId,
+              originalSrc,
               newSrc: result.converted_url,
               success: true
             };
@@ -386,67 +393,53 @@ class IframeToVideoSDK {
             console.error(`❌ Failed to process ${trackId}:`, error.message);
             return {
               trackId,
-              newSrc: trackDetails.details.src, // Keep original on error
+              originalSrc,
+              newSrc: originalSrc, // Keep original on error
               success: false
             };
           }
         })
       );
 
-      // Create a map of trackId -> newSrc for easy lookup
-      const urlUpdates = Object.fromEntries(
-        processedImageItems.map(item => [item.trackId, item.newSrc])
-      );
+      // Create a map of trackId -> newSrc for successful conversions only
+      const urlUpdates = {};
+      processedImageItems.forEach(item => {
+        if (item.success && item.newSrc !== item.originalSrc) {
+          urlUpdates[item.trackId] = item.newSrc;
+        }
+      });
 
-      // Update trackItemDetailsMap
-      const updatedTrackItemDetailsMap = Object.fromEntries(
-        trackItemDetailsEntries.map(([trackId, trackDetails]) => {
-          if (urlUpdates[trackId]) {
-            return [
-              trackId,
-              {
-                ...trackDetails,
-                details: {
-                  ...trackDetails.details,
-                  src: urlUpdates[trackId]
-                }
-              }
-            ];
-          } else {
-            // No change needed
-            return [trackId, trackDetails];
-          }
-        })
-      );
+      console.log(`🔄 Updating URLs for ${Object.keys(urlUpdates).length} successful conversions...`);
 
-      // Update trackItemsMap (src is also inside details object here)
-      const trackItemsMapEntries = Object.entries(inputJSON.timelineData.trackItemsMap);
-      const updatedTrackItemsMap = Object.fromEntries(
-        trackItemsMapEntries.map(([trackId, trackItem]) => {
-          // If this trackId had a URL update, synchronize it in trackItemsMap too
-          if (urlUpdates[trackId]) {
-            // Update src inside details object
-            if (trackItem.details && trackItem.details.src) {
-              return [
-                trackId,
-                {
-                  ...trackItem,
-                  details: {
-                    ...trackItem.details,
-                    src: urlUpdates[trackId]
-                  }
-                }
-              ];
-            } else {
-              // Keep original structure if no details.src exists
-              return [trackId, trackItem];
+      // Update trackItemDetailsMap - start with original and only update successful ones
+      const updatedTrackItemDetailsMap = { ...inputJSON.timelineData.trackItemDetailsMap };
+      Object.keys(urlUpdates).forEach(trackId => {
+        if (updatedTrackItemDetailsMap[trackId] && updatedTrackItemDetailsMap[trackId].details) {
+          updatedTrackItemDetailsMap[trackId] = {
+            ...updatedTrackItemDetailsMap[trackId],
+            details: {
+              ...updatedTrackItemDetailsMap[trackId].details,
+              src: urlUpdates[trackId]
             }
-          } else {
-            // No change needed
-            return [trackId, trackItem];
-          }
-        })
-      );
+          };
+          console.log(`✅ Updated trackItemDetailsMap[${trackId}]: ${urlUpdates[trackId]}`);
+        }
+      });
+
+      // Update trackItemsMap - start with original and only update successful ones
+      const updatedTrackItemsMap = { ...inputJSON.timelineData.trackItemsMap };
+      Object.keys(urlUpdates).forEach(trackId => {
+        if (updatedTrackItemsMap[trackId] && updatedTrackItemsMap[trackId].details && updatedTrackItemsMap[trackId].details.src) {
+          updatedTrackItemsMap[trackId] = {
+            ...updatedTrackItemsMap[trackId],
+            details: {
+              ...updatedTrackItemsMap[trackId].details,
+              src: urlUpdates[trackId]
+            }
+          };
+          console.log(`✅ Updated trackItemsMap[${trackId}]: ${urlUpdates[trackId]}`);
+        }
+      });
 
       // Build output JSON in exact same format as input
       const output = {
